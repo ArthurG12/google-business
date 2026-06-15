@@ -1,0 +1,23 @@
+{
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "google-business",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "google-business-core",
+        "**/__tests__/**",
+        "**/*.ts",
+        "!lib/**"
+      ],
+      "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"]
+    }
+  ],
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "@bp-templates/google-business",
+  "integrationName": "google-business",
+  "scripts": {
+    "check:type": "tsc --noEmit -p tsconfig.server.json",
+    "check:type:integration": "tsc --noEmit",
+    "version": "npx @botpress/cli --version",
+    "login": "npx @botpress/cli login",
+    "dev": "npx @botpress/cli dev",
+    "gen": "npx @botpress/cli gen",
+    "deploy": "npx @botpress/cli deploy",
+    "start:server": "TS_NODE_TRANSPILE_ONLY=1 node -r dotenv/config --require ts-node/register/transpile-only src/backend/server.ts",
+    "deploy:functions": "cd functions && npm install && npm run build && cd .. && firebase deploy --only functions,firestore:rules",
+    "setup:pubsub": "bash scripts/setup-pubsub.sh therme-gas google-business-reviews"
+  },
+  "private": true,
+  "dependencies": {
+    "@botpress/client": "^1.36.0",
+    "@botpress/sdk": "6.4.3",
+    "axios": "^1.7.9",
+    "cors": "^2.8.5",
+    "crypto-js": "^4.2.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "firebase-admin": "^13.0.2",
+    "googleapis": "^144.0.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/crypto-js": "^4.2.2",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.16.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  }
+}

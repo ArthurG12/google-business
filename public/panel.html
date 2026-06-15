@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Google Meu Negócio — Painel</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 960px; margin: 24px auto; padding: 0 16px; color: #1f2937; }
+    h1 { font-size: 1.5rem; }
+    section { border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    label { display: block; font-weight: 600; margin-top: 8px; }
+    input, textarea, button { width: 100%; margin-top: 4px; padding: 8px; box-sizing: border-box; }
+    button { cursor: pointer; background: #2563eb; color: white; border: none; border-radius: 6px; margin-top: 12px; }
+    button.secondary { background: #6b7280; }
+    .status { padding: 8px 12px; border-radius: 6px; background: #f3f4f6; }
+    .review { border-top: 1px solid #e5e7eb; padding-top: 12px; margin-top: 12px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #dbeafe; }
+    pre { background: #111827; color: #f9fafb; padding: 12px; overflow: auto; border-radius: 6px; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Google Meu Negócio</h1>
+  <p>Painel para conectar conta, listar avaliações e publicar respostas.</p>
+
+  <section>
+    <label for="clientId">Client ID</label>
+    <input id="clientId" placeholder="ex.: doutor-celulares" />
+    <label for="accountId">Account ID</label>
+    <input id="accountId" placeholder="ex.: 123456789" />
+    <label for="locationId">Location ID</label>
+    <input id="locationId" placeholder="ex.: 987654321" />
+    <label for="apiKey">API Key (opcional)</label>
+    <input id="apiKey" type="password" placeholder="GOOGLE_BUSINESS_API_KEY" />
+  </section>
+
+  <section>
+    <h2>Conexão</h2>
+    <div id="connectionStatus" class="status">Status: desconhecido</div>
+    <button id="connectBtn">Conectar Google Meu Negócio</button>
+    <button id="refreshStatusBtn" class="secondary">Atualizar status</button>
+  </section>
+
+  <section>
+    <h2>Localizações e avaliações</h2>
+    <button id="loadLocationsBtn">Listar localizações</button>
+    <button id="loadReviewsBtn" class="secondary">Sincronizar avaliações</button>
+    <div id="reviews"></div>
+  </section>
+
+  <section>
+    <h2>Logs</h2>
+    <pre id="log"></pre>
+  </section>
+
+  <script>
+    const basePath = window.location.pathname.replace(/\/panel$/, '');
+
+    function headers() {
+      const apiKey = document.getElementById('apiKey').value.trim();
+      return apiKey
+        ? { 'x-api-key': apiKey, 'Content-Type': 'application/json' }
+        : { 'Content-Type': 'application/json' };
+    }
+
+    function log(message, data) {
+      const el = document.getElementById('log');
+      el.textContent = `[${new Date().toISOString()}] ${message}\n`
+        + (data ? JSON.stringify(data, null, 2) + '\n' : '')
+        + el.textContent;
+    }
+
+    async function apiFetch(path, options = {}) {
+      const clientId = document.getElementById('clientId').value.trim();
+      const url = new URL(basePath + path, window.location.origin);
+      if (clientId) url.searchParams.set('clientId', clientId);
+      const response = await fetch(url.toString(), {
+        ...options,
+        headers: { ...headers(), ...(options.headers || {}) },
+      });
+      const text = await response.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = text; }
+      if (!response.ok) {
+        throw new Error(typeof data === 'string' ? data : data.message || JSON.stringify(data));
+      }
+      return data;
+    }
+
+    document.getElementById('connectBtn').onclick = async () => {
+      try {
+        const clientId = document.getElementById('clientId').value.trim();
+        if (!clientId) return alert('Informe clientId');
+        const data = await apiFetch('/oauth/start');
+        window.location.href = data.url;
+      } catch (error) {
+        log('Erro ao iniciar OAuth', { error: error.message });
+        alert(error.message);
+      }
+    };
+
+    document.getElementById('refreshStatusBtn').onclick = async () => {
+      try {
+        const data = await apiFetch('/status');
+        document.getElementById('connectionStatus').textContent =
+          `Status: ${data.status} | conectado: ${data.connected}`;
+        log('Status atualizado', data);
+      } catch (error) {
+        log('Erro status', { error: error.message });
+      }
+    };
+
+    document.getElementById('loadLocationsBtn').onclick = async () => {
+      try {
+        const accountId = document.getElementById('accountId').value.trim();
+        const path = accountId
+          ? `/locations?accountId=${encodeURIComponent(accountId)}`
+          : '/locations';
+        const data = await apiFetch(path);
+        log('Localizações', data);
+      } catch (error) {
+        log('Erro localizações', { error: error.message });
+      }
+    };
+
+    async function renderReviews() {
+      const locationId = document.getElementById('locationId').value.trim();
+      if (!locationId) return alert('Informe locationId');
+      const accountId = document.getElementById('accountId').value.trim();
+      const path = `/locations/${encodeURIComponent(locationId)}/reviews`
+        + (accountId ? `?accountId=${encodeURIComponent(accountId)}` : '');
+      const data = await apiFetch(path);
+      const container = document.getElementById('reviews');
+      container.innerHTML = '';
+      data.forEach((review) => {
+        const div = document.createElement('div');
+        div.className = 'review';
+        div.innerHTML = `
+          <div><strong>${review.reviewerName || 'Anônimo'}</strong>
+            <span class="badge">${review.starRating || '?'}★</span>
+            <span class="badge">${review.replyStatus}</span></div>
+          <p>${review.comment || '(sem comentário)'}</p>
+          <textarea rows="3" id="reply-${review.reviewId}">${review.replyComment || ''}</textarea>
+          <button data-review-id="${review.reviewId}">Sugerir resposta</button>
+          <button data-publish-id="${review.reviewId}" class="secondary">Publicar resposta</button>
+        `;
+        container.appendChild(div);
+      });
+
+      container.querySelectorAll('button[data-review-id]').forEach((btn) => {
+        btn.onclick = async () => {
+          const reviewId = btn.getAttribute('data-review-id');
+          const suggestion = await apiFetch(
+            `/locations/${encodeURIComponent(locationId)}/reviews/${encodeURIComponent(reviewId)}/suggest-reply`,
+            { method: 'POST' },
+          );
+          document.getElementById(`reply-${reviewId}`).value = suggestion.reply;
+          log('Sugestão gerada', suggestion);
+        };
+      });
+
+      container.querySelectorAll('button[data-publish-id]').forEach((btn) => {
+        btn.onclick = async () => {
+          const reviewId = btn.getAttribute('data-publish-id');
+          const reply = document.getElementById(`reply-${reviewId}`).value.trim();
+          const accountId = document.getElementById('accountId').value.trim();
+          if (!reply) return alert('Escreva ou gere uma resposta');
+          const result = await apiFetch(
+            `/locations/${encodeURIComponent(locationId)}/reviews/${encodeURIComponent(reviewId)}/reply`,
+            {
+              method: 'POST',
+              body: JSON.stringify({ reply, accountId, force: false }),
+            },
+          );
+          log('Resposta publicada', result);
+          alert('Resposta publicada');
+        };
+      });
+    }
+
+    document.getElementById('loadReviewsBtn').onclick = async () => {
+      try {
+        await renderReviews();
+        log('Avaliações sincronizadas');
+      } catch (error) {
+        log('Erro avaliações', { error: error.message });
+        alert(error.message);
+      }
+    };
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('clientId')) {
+      document.getElementById('clientId').value = params.get('clientId');
+    }
+    if (params.get('googleBusiness') === 'connected') {
+      log('Conta Google conectada com sucesso');
+    }
+
+    (async () => {
+      try {
+        const health = await apiFetch('/health');
+        if (!health.ok) {
+          const missing = (health.checks || [])
+            .filter((item) => !item.ok)
+            .map((item) => item.message)
+            .join('\n');
+          document.getElementById('connectionStatus').textContent =
+            'Status: configuração incompleta — veja logs abaixo';
+          log('Configuração incompleta', { checks: health.checks });
+          if (missing) alert('Antes de conectar, configure:\n\n' + missing);
+        }
+      } catch (error) {
+        log('Erro ao verificar health', { error: error.message });
+      }
+    })();
+  </script>
+</body>
+</html>
